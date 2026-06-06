@@ -90,9 +90,11 @@ Corresponding simplified output, in disjunctive normal form:
 
 ## Architecture
 
-Beast is primarily a thin command-line wrapper around two libraries, organized as a Cargo workspace of two crates:
+Beast is organized as a Cargo workspace of two crates:
 
-1. **A converter** (the `beast` crate) that transforms an arbitrary boolean expression into an equivalent expression in disjunctive normal form (DNF).
-2. **A simplifier** (the `quine-mccluskey` crate) that minimizes a boolean expression, taking DNF as its input and producing DNF as its output.
+1. **The `beast` crate** — the main crate. It owns the end-to-end pipeline: it parses the JsonLogic input and converts it to an equivalent expression in disjunctive normal form (DNF), drives the simplification, and serializes the simplified result back to JsonLogic. It depends on `quine-mccluskey` for the minimization step.
+2. **The `quine-mccluskey` crate** — the simplifier library. It minimizes a boolean expression with the Quine–McCluskey algorithm, taking DNF as its input and producing minimized DNF as its output.
 
-The command-line program parses the JsonLogic input, passes it through the converter to obtain a DNF expression, hands that to the simplifier, and serializes the simplified DNF result back to JsonLogic.
+So `beast` does the full job — convert, simplify, and emit the simplified expression — delegating only the core Quine–McCluskey minimization to the `quine-mccluskey` crate. The command-line program parses the JsonLogic input, converts it to DNF, hands that to the simplifier, and serializes the minimized DNF result back to JsonLogic.
+
+> **Future enhancement:** an algebraic I/O mode — reading and writing expressions in algebraic form (e.g. `(a & b) | !c`) in addition to JsonLogic — is planned but not yet part of Beast. For now, both input and output are JsonLogic.

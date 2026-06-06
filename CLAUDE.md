@@ -42,7 +42,7 @@ cargo clippy                # lints (clean; one intentional-bug line is annotate
 
 ## Architecture (big picture)
 
-Beast is a thin CLI wrapping two conceptual libraries; data flows: **JsonLogic → DNF → minimized DNF → JsonLogic**.
+Beast is a thin CLI wrapping two conceptual libraries; data flows: **JsonLogic → DNF → minimized DNF → JsonLogic**. The `beast` crate owns input parsing and output serialization; the actual simplification is delegated to the `quine-mccluskey` crate.
 
 Workspace layout — two crates:
 - `beast/` — `src/lib.rs` (data model, algebra, `simplify*`), `src/json.rs` (in-crate JSON), `src/main.rs` (CLI). Depends on `quine-mccluskey`.
@@ -66,6 +66,7 @@ Workspace layout — two crates:
 ## Locked decisions (do not re-litigate; see `plan.md` §0)
 
 - **I/O format is JsonLogic** (operator-as-key objects, one key per node) for both input and output. The current `to_json` emits a non-JsonLogic array form (`["or",[...]]`) and must be rewritten to objects (`{"or":[...]}`, negation `{"!":[...]}`, variable `{"var":"name"}`).
+- **Future enhancement (out of scope for the current plan):** an algebraic I/O mode — emitting algebraic output (via a CLI flag using `to_algebraic`) and accepting algebraic input (via a new algebraic parser, which does not exist yet). See `plan.md` §7. For now, `to_algebraic` is an internal/comparison helper only.
 - **Variable names are arbitrary** user-supplied strings, mapped to bit indices and preserved in output.
 - **Accepted operators**: standard `and`, `or`, `!`, `var`, and boolean literals `true`/`false`, PLUS non-standard Beast extensions `xor`, `nand`, `nor`. The extensions are **input-only** — desugared to `and`/`or`/`!` during conversion and never emitted on output. All other JsonLogic operators (comparison/numeric/array/string) are rejected.
 

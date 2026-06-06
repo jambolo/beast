@@ -6,12 +6,13 @@
 
 ## 0. Authoritative constraints (do not violate)
 
-- C0.1 — JSON input AND output format is **JsonLogic** (jsonlogic.com): operator-as-key objects, one key per node. Standard operators in scope: `and`, `or`, `!`, `var`, plus boolean literals `true`/`false`.
+- C0.1 — JSON input AND output format is **JsonLogic** (jsonlogic.com): operator-as-key objects, one key per node. Standard operators in scope: `and`, `or`, `!`, `var`, plus boolean literals `true`/`false`. (An algebraic I/O mode is an explicit FUTURE enhancement, NOT in scope here; see §7.)
 - C0.1a — NON-STANDARD EXTENSIONS: the converter ALSO accepts `xor`, `nand`, `nor` on INPUT. These are NOT part of the JsonLogic spec (a standard JsonLogic engine will not understand them); document them clearly as Beast extensions. They are INPUT-ONLY — desugared during conversion and NEVER emitted on output (output is minimized DNF over `and`/`or`/`!`/`var`). Semantics (n-ary): `xor` = true iff an odd number of args are true; `nand` = `!(and args)`; `nor` = `!(or args)`.
 - C0.2 — Variable names are **arbitrary user-supplied strings**, mapped to internal bit indices via a shared name↔index table. Original names MUST be restored on output.
-- C0.3 — Architecture is two libraries wrapped by a CLI (the Converter and CLI live in the `beast` crate; the Simplifier is the `quine-mccluskey` crate):
-  - **Converter**: arbitrary JsonLogic boolean expression → `Expression` in **DNF**.
-  - **Simplifier**: `Expression` in DNF → minimized `Expression` in DNF (Quine–McCluskey).
+- C0.3 — Architecture is two libraries wrapped by a CLI (the Converter, serializer, and CLI live in the `beast` crate; the Simplifier is the `quine-mccluskey` crate). End-to-end flow: `beast` parses JsonLogic input → DNF, delegates simplification to `quine-mccluskey`, then serializes the minimized DNF back out as JsonLogic.
+  - **Converter** (`beast`): arbitrary JsonLogic boolean expression → `Expression` in **DNF**.
+  - **Simplifier** (`quine-mccluskey`): `Expression` in DNF → minimized `Expression` in DNF (Quine–McCluskey).
+  - **Serializer** (`beast`): minimized `Expression` → JsonLogic (`to_json`). (`to_algebraic` exists as an internal/comparison helper; it is not a user-facing output path in the current plan.)
 - C0.4 — Internal canonical form is **DNF** (disjunctive normal form): `Expression` = OR of `Clause`s; `Clause` = AND of literals.
 - C0.5 — Variable count is bounded by `MAX_VARIABLES = 32` (`Term` is `u32`). Reject inputs exceeding this with a clear error.
 - C0.6 — Keep the build portable and offline: Beast is a Cargo workspace that builds with `cargo build` on any supported platform. Do not add steps that require network access or platform-specific tooling.
@@ -24,7 +25,7 @@
 | `beast/src/lib.rs` | Data model (`Expression`, `Clause`) + algebra (`Clause::and_assign`, `BitOr`/`BitAnd`/`BitOrAssign`/`BitAndAssign` for `Expression`, `Expression::inverse`) + serializers (`to_json`, `to_algebraic`) implemented. `simplify` and `simplify_json` are STUBS returning an empty `Expression`. `to_json` emits a non-JsonLogic array form `["or",[...]]`; hardcodes `"x"+index` names; does NOT filter empty clauses. `to_algebraic` DOES filter empty clauses (inconsistent with `to_json`). `Expression::inverse` returns FALSE for every input (BUG-10). Re-exports the `quine-mccluskey` crate as `beast::quine_mccluskey`. |
 | `quine-mccluskey/src/lib.rs` | `minimize()` UNFINISHED (returns empty `Vec`). Prime-implicant generation present; **selection absent**. BUGS: `differ_by_one_bit` self-compares `i0.d == i0.d` (should be `i0.d == i1.d`, isolated behind a `#[allow(clippy::eq_op)]` binding); minterm `0` underflows `r[number_of_one_bits(t) - 1]`; `Round` sized `MAX_VARIABLES` (32) but needs 33 slots for one-counts 0..=32. |
 | `beast/src/json.rs` | In-crate JSON value type + recursive-descent parser + compact serializer. Complete; provides all JSON I/O for the crate. |
-| `beast/src/main.rs` | CLI: reads first arg or stdin, parses JSON, calls `simplify_json`, prints `to_json`. Errors → stderr, exit nonzero. |
+| `beast/src/main.rs` | CLI: reads first arg or stdin, parses JSON, calls `simplify_json`, prints `to_json`. Errors → stderr, exit nonzero. Output is always JsonLogic. |
 | `Cargo.toml` (root) | Cargo **workspace** with members `beast` and `quine-mccluskey`. |
 | `beast/Cargo.toml` | Package `beast`, edition 2021, `lib` + `bin` both named `beast`; one path dependency on `quine-mccluskey`. |
 | `quine-mccluskey/Cargo.toml` | Package `quine-mccluskey` (lib name `quine_mccluskey`), edition 2021, zero dependencies. |
@@ -155,3 +156,7 @@ The crate builds (`cargo build`), `cargo test` / `cargo clippy` are clean, and t
 - Q2 (D3) — Petrick's method (exact, can be exponential) vs greedy (fast, may be non-minimal) for non-essential PI cover. Default: Petrick below an N-PI threshold, greedy fallback above it; document the threshold.
 - Q3 (C1) — RESOLVED: converter accepts boolean operators only — standard `and`, `or`, `!`, `var`, `true`, `false`, PLUS the non-standard Beast extensions `xor`, `nand`, `nor` (input-only, desugared, never emitted). Reject every other operator (comparison/numeric/array/string families) with a clear error.
 - Q4 (E2) — Output formatting: compact vs pretty JSON; stable key ordering for golden tests. Default: compact, deterministic ordering.
+
+## 7. Future enhancements (explicitly OUT of scope for this plan)
+
+- FE-1 — **Algebraic I/O mode.** The current plan is JsonLogic-only for both input and output. A future enhancement adds algebraic form on BOTH sides: emitting algebraic *output* (CLI flag selecting `to_algebraic` over `to_json`) and accepting algebraic *input* (a new tokenizer + parser for the algebraic syntax, wired into the CLI as an input-format selector). The `to_algebraic` serializer already exists as an internal helper and would become a user-facing output path; the algebraic input parser does not exist yet. Do not implement as part of the current phases.
