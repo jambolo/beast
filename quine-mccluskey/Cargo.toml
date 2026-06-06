@@ -1,0 +1,12 @@
+[package]
+name = "quine-mccluskey"
+version = "0.1.0"
+edition = "2021"
+description = "Quine-McCluskey boolean minimization over bit-packed terms"
+license = "MIT"
+
+# Zero external dependencies.
+
+[lib]
+name = "quine_mccluskey"
+path = "src/lib.rs"

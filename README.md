@@ -8,6 +8,18 @@ Given a boolean expression of any shape — arbitrarily nested `and`, `or`, and 
 
 Internally the simplification is performed in disjunctive normal form (DNF) using the Quine–McCluskey algorithm. The input may be in any form; Beast converts it to DNF, minimizes it, and emits the result.
 
+## Building
+
+Beast is a Cargo workspace with no external dependencies, so it builds offline with a standard Rust toolchain:
+
+```sh
+cargo build                            # build the workspace (library + `beast` binary)
+cargo test                             # run the test suite
+cargo run -p beast -- '<expression>'   # build and run the CLI
+```
+
+The compiled binary is `target/debug/beast` (or `target/release/beast` after `cargo build --release`).
+
 ## Command-line syntax
 
 ```
@@ -78,9 +90,9 @@ Corresponding simplified output, in disjunctive normal form:
 
 ## Architecture
 
-Beast is primarily a thin command-line wrapper around two libraries:
+Beast is primarily a thin command-line wrapper around two libraries, organized as a Cargo workspace of two crates:
 
-1. **A converter** that transforms an arbitrary boolean expression into an equivalent expression in disjunctive normal form (DNF).
-2. **A simplifier** that minimizes a boolean expression, taking DNF as its input and producing DNF as its output.
+1. **A converter** (the `beast` crate) that transforms an arbitrary boolean expression into an equivalent expression in disjunctive normal form (DNF).
+2. **A simplifier** (the `quine-mccluskey` crate) that minimizes a boolean expression, taking DNF as its input and producing DNF as its output.
 
 The command-line program parses the JsonLogic input, passes it through the converter to obtain a DNF expression, hands that to the simplifier, and serializes the simplified DNF result back to JsonLogic.

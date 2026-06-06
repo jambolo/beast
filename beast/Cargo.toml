@@ -1,0 +1,20 @@
+[package]
+name = "beast"
+version = "0.1.0"
+edition = "2021"
+description = "Boolean expression simplifier (Quine-McCluskey over disjunctive normal form)"
+license = "MIT"
+
+# JSON parsing/serialization is provided by the in-crate `json` module; the only
+# dependency is the workspace's quine-mccluskey simplifier crate.
+
+[lib]
+name = "beast"
+path = "src/lib.rs"
+
+[[bin]]
+name = "beast"
+path = "src/main.rs"
+
+[dependencies]
+quine-mccluskey = { path = "../quine-mccluskey" }
