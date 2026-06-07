@@ -33,6 +33,12 @@ fn main() {
         }
     };
 
-    let simplified = beast::simplify_json(&expression_json);
+    let simplified = match beast::simplify_json(&expression_json) {
+        Ok(expression) => expression,
+        Err(e) => {
+            eprintln!("{}", e);
+            exit(1);
+        }
+    };
     println!("{}", simplified.to_json());
 }

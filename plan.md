@@ -4,6 +4,12 @@
 > Each task has: `ID`, `deps`, `files`, `action`, `acceptance`. Do tasks in dependency order.
 > Treat `acceptance` as the definition of done; do not mark a task complete until it passes.
 
+> **STATUS: COMPLETE.** All phases (B–E) and cross-cutting bug fixes (BUG-2 through BUG-10)
+> are implemented. The full JsonLogic → DNF → minimized DNF → JsonLogic pipeline works;
+> `cargo build` / `cargo test` (44 tests) / `cargo clippy` are clean. One deviation from the
+> contracts below: `simplify_json` returns `Result<Expression, String>` (not `Expression`) so
+> the CLI can report converter errors. The sections below are retained as the design record.
+
 ## 0. Authoritative constraints (do not violate)
 
 - C0.1 — JSON input AND output format is **JsonLogic** (jsonlogic.com): operator-as-key objects, one key per node. Standard operators in scope: `and`, `or`, `!`, `var`, plus boolean literals `true`/`false`. (An algebraic I/O mode is an explicit FUTURE enhancement, NOT in scope here; see §7.)
@@ -160,3 +166,4 @@ The crate builds (`cargo build`), `cargo test` / `cargo clippy` are clean, and t
 ## 7. Future enhancements (explicitly OUT of scope for this plan)
 
 - FE-1 — **Algebraic I/O mode.** The current plan is JsonLogic-only for both input and output. A future enhancement adds algebraic form on BOTH sides: emitting algebraic *output* (CLI flag selecting `to_algebraic` over `to_json`) and accepting algebraic *input* (a new tokenizer + parser for the algebraic syntax, wired into the CLI as an input-format selector). The `to_algebraic` serializer already exists as an internal helper and would become a user-facing output path; the algebraic input parser does not exist yet. Do not implement as part of the current phases.
+  - **Multi-character variable naming convention (for the algebraic parser):** By default, adjacent alphanumeric characters in an algebraic expression signify implicit multiplication (e.g., `ab` means `a * b`, following standard algebraic convention). To use multi-character variable names, prefix them with `$`; the identifier continues while the next character is in `[0-9a-zA-Z_]` and stops otherwise. Examples: `$velocity * 2 + $pressure` (two 8-char variables), `abc` (three single-letter variables multiplied), `$ab + $cd` (two 2-char variables), `a$bc + d` (single-letter `a` times variable `bc`, plus `d`). This convention preserves implicit multiplication semantics while providing unambiguous multi-character names.
