@@ -21,7 +21,30 @@ pub enum Json {
 }
 
 impl Json {
-    /// Parses a JSON document from a string. Returns an error message on failure.
+    /// Parses a JSON document from a string.
+    ///
+    /// The whole input must be a single JSON value; trailing non-whitespace
+    /// characters are an error.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` with a human-readable message (including the byte offset
+    /// where possible) for malformed input: unexpected or missing characters,
+    /// unterminated strings, invalid escapes, invalid numbers, or trailing
+    /// characters after the value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use beast::json::Json;
+    ///
+    /// let v = Json::parse(r#"{"or":[{"var":"a"},true]}"#).unwrap();
+    /// // Serialization is compact and preserves key order.
+    /// assert_eq!(v.to_string(), r#"{"or":[{"var":"a"},true]}"#);
+    ///
+    /// assert!(Json::parse("{bad}").is_err());
+    /// assert!(Json::parse("").is_err());
+    /// ```
     pub fn parse(text: &str) -> Result<Json, String> {
         let mut parser = Parser::new(text);
         parser.skip_whitespace();
@@ -34,6 +57,15 @@ impl Json {
     }
 
     /// Returns the string value if this is a `String`, otherwise `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use beast::json::Json;
+    ///
+    /// assert_eq!(Json::String("a".into()).as_str(), Some("a"));
+    /// assert_eq!(Json::Bool(true).as_str(), None);
+    /// ```
     pub fn as_str(&self) -> Option<&str> {
         match self {
             Json::String(s) => Some(s),
@@ -42,6 +74,16 @@ impl Json {
     }
 
     /// Returns the array elements if this is an `Array`, otherwise `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use beast::json::Json;
+    ///
+    /// let v = Json::parse("[1,2,3]").unwrap();
+    /// assert_eq!(v.as_array().map(<[_]>::len), Some(3));
+    /// assert!(Json::Null.as_array().is_none());
+    /// ```
     pub fn as_array(&self) -> Option<&[Json]> {
         match self {
             Json::Array(a) => Some(a),
@@ -50,6 +92,18 @@ impl Json {
     }
 
     /// Looks up a key if this is an `Object`, otherwise `None`.
+    ///
+    /// Returns the value of the first matching key in insertion order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use beast::json::Json;
+    ///
+    /// let v = Json::parse(r#"{"var":"name"}"#).unwrap();
+    /// assert_eq!(v.get("var").and_then(Json::as_str), Some("name"));
+    /// assert!(v.get("missing").is_none());
+    /// ```
     pub fn get(&self, key: &str) -> Option<&Json> {
         match self {
             Json::Object(pairs) => pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v),
@@ -355,5 +409,72 @@ mod tests {
     fn accessors_work() {
         let v = Json::parse(r#"{"var":"name"}"#).unwrap();
         assert_eq!(get(&v, "var").as_str(), Some("name"));
+    }
+
+    #[test]
+    fn parses_numbers_and_serializes_integers_without_fraction() {
+        assert_eq!(Json::parse("42").unwrap(), Json::Number(42.0));
+        assert_eq!(Json::parse("42").unwrap().to_string(), "42");
+        assert_eq!(Json::parse("-3.5").unwrap().to_string(), "-3.5");
+        assert_eq!(Json::parse("1e3").unwrap(), Json::Number(1000.0));
+    }
+
+    #[test]
+    fn parses_and_round_trips_null_and_bools() {
+        assert_eq!(Json::parse("null").unwrap(), Json::Null);
+        assert_eq!(Json::parse("true").unwrap(), Json::Bool(true));
+        assert_eq!(Json::parse("false").unwrap().to_string(), "false");
+    }
+
+    #[test]
+    fn parses_escapes_and_unicode() {
+        let v = Json::parse(r#""a\tbA\n""#).unwrap();
+        assert_eq!(v.as_str(), Some("a\tbA\n"));
+    }
+
+    #[test]
+    fn serializes_control_characters_as_escapes() {
+        let s = Json::String("tab\tand\"quote".to_string());
+        assert_eq!(s.to_string(), r#""tab\tand\"quote""#);
+    }
+
+    #[test]
+    fn round_trips_multibyte_utf8() {
+        let v = Json::parse(r#""héllo→""#).unwrap();
+        assert_eq!(v.as_str(), Some("héllo→"));
+        assert_eq!(v.to_string(), r#""héllo→""#);
+    }
+
+    #[test]
+    fn rejects_trailing_characters() {
+        assert!(Json::parse("true false").is_err());
+        assert!(Json::parse("{} {}").is_err());
+    }
+
+    #[test]
+    fn rejects_unterminated_string_and_bad_escape() {
+        assert!(Json::parse(r#""abc"#).is_err());
+        assert!(Json::parse(r#""\x""#).is_err());
+        assert!(Json::parse(r#""\u00zz""#).is_err());
+    }
+
+    #[test]
+    fn parses_empty_containers() {
+        assert_eq!(Json::parse("{}").unwrap(), Json::Object(vec![]));
+        assert_eq!(Json::parse("[]").unwrap(), Json::Array(vec![]));
+    }
+
+    #[test]
+    fn skips_insignificant_whitespace() {
+        let v = Json::parse("  {  \"a\" : [ 1 , 2 ] }  ").unwrap();
+        assert_eq!(v.to_string(), r#"{"a":[1,2]}"#);
+    }
+
+    #[test]
+    fn accessors_return_none_on_type_mismatch() {
+        let arr = Json::parse("[1,2]").unwrap();
+        assert!(arr.as_str().is_none());
+        assert!(arr.get("x").is_none());
+        assert!(Json::Bool(true).as_array().is_none());
     }
 }

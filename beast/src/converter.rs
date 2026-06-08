@@ -18,8 +18,36 @@ use crate::{Clause, Expression};
 /// Parses a JsonLogic boolean expression into a DNF [`Expression`], registering
 /// variables in `table`.
 ///
-/// Returns `Err` with a human-readable message for malformed structure, unknown
-/// operators, bad arity, or too many distinct variables.
+/// # Errors
+///
+/// Returns `Err` with a human-readable message when the tree is not a valid
+/// boolean expression:
+/// - a node object that does not have exactly one operator key,
+/// - an unsupported operator (any non-boolean JsonLogic operator),
+/// - an operator applied with the wrong arity (`!` with other than one operand,
+///   or empty `and` / `or` / `xor`),
+/// - a `var` whose value is not a string, or a bare array / number / string /
+///   null where a boolean expression was expected,
+/// - more variables than [`quine_mccluskey::MAX_VARIABLES`] (surfaced from
+///   `table`).
+///
+/// # Examples
+///
+/// ```
+/// use beast::converter::to_dnf;
+/// use beast::json::Json;
+/// use beast::variable_table::VariableTable;
+///
+/// // a & (b | c) distributes into DNF: (a & b) | (a & c).
+/// let json = Json::parse(r#"{"and":[{"var":"a"},{"or":[{"var":"b"},{"var":"c"}]}]}"#).unwrap();
+/// let mut table = VariableTable::new();
+/// let dnf = to_dnf(&json, &mut table).unwrap();
+/// assert_eq!(dnf.clauses().len(), 2);
+///
+/// // Unsupported operators are rejected.
+/// let bad = Json::parse(r#"{"+":[{"var":"a"},{"var":"b"}]}"#).unwrap();
+/// assert!(to_dnf(&bad, &mut VariableTable::new()).is_err());
+/// ```
 pub fn to_dnf(json: &Json, table: &mut VariableTable) -> Result<Expression, String> {
     match json {
         Json::Bool(true) => Ok(Expression::r#true()),
@@ -83,7 +111,10 @@ fn unary_operand(value: &Json) -> Result<&Json, String> {
             if items.len() == 1 {
                 Ok(&items[0])
             } else {
-                Err(format!("\"!\" takes exactly one operand, found {}", items.len()))
+                Err(format!(
+                    "\"!\" takes exactly one operand, found {}",
+                    items.len()
+                ))
             }
         }
         other => Ok(other),
@@ -256,5 +287,54 @@ mod tests {
     #[test]
     fn rejects_non_string_var() {
         assert!(dnf(r#"{"var":1}"#).is_err());
+    }
+
+    #[test]
+    fn rejects_empty_object_node() {
+        // Zero operator keys is not a valid node.
+        assert!(dnf(r#"{}"#).is_err());
+    }
+
+    #[test]
+    fn rejects_bare_non_boolean_values() {
+        assert!(dnf("1").is_err());
+        assert!(dnf(r#""a""#).is_err());
+        assert!(dnf("null").is_err());
+        assert!(dnf("[1,2]").is_err());
+    }
+
+    #[test]
+    fn double_negation_cancels() {
+        // !!a == a
+        let e = dnf(r#"{"!":[{"!":[{"var":"a"}]}]}"#).unwrap();
+        assert_equiv(&e, 1, |x| x & 1 != 0);
+    }
+
+    #[test]
+    fn single_operand_or_and_are_identity() {
+        let or = dnf(r#"{"or":[{"var":"a"}]}"#).unwrap();
+        assert_equiv(&or, 1, |x| x & 1 != 0);
+        let and = dnf(r#"{"and":[{"var":"a"}]}"#).unwrap();
+        assert_equiv(&and, 1, |x| x & 1 != 0);
+    }
+
+    #[test]
+    fn and_accepts_bare_single_operand() {
+        // `args` treats a non-array value as a single operand.
+        let e = dnf(r#"{"and":{"var":"a"}}"#).unwrap();
+        assert_equiv(&e, 1, |x| x & 1 != 0);
+    }
+
+    #[test]
+    fn nor_of_three_is_all_false() {
+        // nor(a,b,c) is true only when a, b, c are all false.
+        let e = dnf(r#"{"nor":[{"var":"a"},{"var":"b"},{"var":"c"}]}"#).unwrap();
+        assert_equiv(&e, 3, |x| x == 0);
+    }
+
+    #[test]
+    fn xor_single_operand_is_identity() {
+        let e = dnf(r#"{"xor":[{"var":"a"}]}"#).unwrap();
+        assert_equiv(&e, 1, |x| x & 1 != 0);
     }
 }

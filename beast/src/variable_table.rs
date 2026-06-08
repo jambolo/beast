@@ -34,8 +34,26 @@ impl VariableTable {
 
     /// Returns the index for `name`, assigning a new one if the name is unseen.
     ///
-    /// Returns `Err` if a new index would exceed
-    /// [`quine_mccluskey::MAX_VARIABLES`].
+    /// Indices are stable: the same name always resolves to the same index.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` when `name` is previously unseen and the table already holds
+    /// [`quine_mccluskey::MAX_VARIABLES`] distinct names. An already-known name
+    /// always succeeds, even once the table is full.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use beast::variable_table::VariableTable;
+    ///
+    /// let mut t = VariableTable::new();
+    /// assert_eq!(t.index_of("rain").unwrap(), 0);
+    /// assert_eq!(t.index_of("cold").unwrap(), 1);
+    /// // The same name resolves to the same index.
+    /// assert_eq!(t.index_of("rain").unwrap(), 0);
+    /// assert_eq!(t.len(), 2);
+    /// ```
     pub fn index_of(&mut self, name: &str) -> Result<usize, String> {
         if let Some(&index) = self.indices.get(name) {
             return Ok(index);
@@ -56,7 +74,17 @@ impl VariableTable {
     ///
     /// # Panics
     ///
-    /// Panics if `index` was never registered.
+    /// Panics if `index` was never registered (i.e. `index >= self.len()`).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use beast::variable_table::VariableTable;
+    ///
+    /// let mut t = VariableTable::new();
+    /// let i = t.index_of("raining").unwrap();
+    /// assert_eq!(t.name_of(i), "raining");
+    /// ```
     pub fn name_of(&self, index: usize) -> &str {
         &self.names[index]
     }
@@ -94,6 +122,38 @@ mod tests {
         assert_eq!(t.name_of(0), "a");
         assert_eq!(t.name_of(1), "b");
         assert_eq!(t.name_of(2), "c");
+    }
+
+    #[test]
+    fn new_table_is_empty() {
+        let t = VariableTable::new();
+        assert!(t.is_empty());
+        assert_eq!(t.len(), 0);
+    }
+
+    #[test]
+    fn registering_a_name_makes_it_non_empty() {
+        let mut t = VariableTable::new();
+        t.index_of("a").unwrap();
+        assert!(!t.is_empty());
+    }
+
+    #[test]
+    #[should_panic]
+    fn name_of_unregistered_index_panics() {
+        let t = VariableTable::new();
+        // No names registered, so index 0 is out of bounds.
+        let _ = t.name_of(0);
+    }
+
+    #[test]
+    fn full_table_still_resolves_known_names() {
+        let mut t = VariableTable::new();
+        for i in 0..MAX_VARIABLES {
+            t.index_of(&format!("v{}", i)).unwrap();
+        }
+        // Known names keep resolving to their original index when full.
+        assert_eq!(t.index_of("v5").unwrap(), 5);
     }
 
     #[test]

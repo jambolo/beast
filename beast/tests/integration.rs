@@ -20,30 +20,31 @@ fn eval(expr: &Expression, assign: &HashMap<&str, bool>) -> bool {
     if expr.is_false() {
         return false;
     }
-    expr.clauses()
-        .iter()
-        .filter(|c| !c.is_false())
-        .any(|c| {
-            (0..c.terms.len()).all(|i| {
-                if c.mask[i] {
-                    let name = expr.table().name_of(i);
-                    assign[name] == c.terms[i]
-                } else {
-                    true
-                }
-            })
+    expr.clauses().iter().filter(|c| !c.is_false()).any(|c| {
+        (0..c.terms.len()).all(|i| {
+            if c.mask[i] {
+                let name = expr.table().name_of(i);
+                assign[name] == c.terms[i]
+            } else {
+                true
+            }
         })
+    })
 }
 
 #[test]
 fn readme_example_reduces_to_a() {
-    let input = r#"{"or":[{"and":[{"var":"a"},{"var":"b"}]},{"and":[{"var":"a"},{"!":{"var":"b"}}]}]}"#;
+    let input =
+        r#"{"or":[{"and":[{"var":"a"},{"var":"b"}]},{"and":[{"var":"a"},{"!":{"var":"b"}}]}]}"#;
     assert_eq!(simplify_str(input), r#"{"var":"a"}"#);
 }
 
 #[test]
 fn tautology_becomes_true() {
-    assert_eq!(simplify_str(r#"{"or":[{"var":"a"},{"!":[{"var":"a"}]}]}"#), "true");
+    assert_eq!(
+        simplify_str(r#"{"or":[{"var":"a"},{"!":[{"var":"a"}]}]}"#),
+        "true"
+    );
 }
 
 #[test]

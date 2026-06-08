@@ -47,6 +47,23 @@ use variable_table::VariableTable;
 ///   produced when a clause contains contradictory literals such as `x & !x`).
 /// - **A clause with non-empty `terms` but no `mask` bit set represents `true`**
 ///   (an empty conjunction).
+///
+/// # Examples
+///
+/// ```
+/// use beast::Clause;
+///
+/// // The literal `x0` (present, unnegated) over one variable.
+/// let x0 = Clause { terms: vec![true], mask: vec![true] };
+/// assert!(!x0.is_false());
+/// assert!(!x0.is_true());
+///
+/// // The `false` sentinel has empty `terms`.
+/// assert!(Clause { terms: vec![], mask: vec![] }.is_false());
+///
+/// // An empty conjunction (non-empty `terms`, no `mask` bit set) is `true`.
+/// assert!(Clause { terms: vec![false], mask: vec![false] }.is_true());
+/// ```
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Clause {
     /// Unnegated (true) or negated (false).
@@ -67,6 +84,25 @@ impl Clause {
     }
 
     /// Ands this clause with another clause, in place.
+    ///
+    /// Combining literals with conflicting signs (`x & !x`) collapses the clause
+    /// to the `false` sentinel (empty `terms`/`mask`).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use beast::Clause;
+    ///
+    /// // x0 & x1 keeps both literals.
+    /// let mut c = Clause { terms: vec![true, false], mask: vec![true, false] };
+    /// c.and_assign(&Clause { terms: vec![false, true], mask: vec![false, true] });
+    /// assert_eq!(c.mask, vec![true, true]);
+    ///
+    /// // x0 & !x0 is a contradiction: the clause becomes `false`.
+    /// let mut c = Clause { terms: vec![true], mask: vec![true] };
+    /// c.and_assign(&Clause { terms: vec![false], mask: vec![true] });
+    /// assert!(c.is_false());
+    /// ```
     pub fn and_assign(&mut self, rhs: &Clause) {
         // Work against the shorter of the two so we only iterate its terms.
         let mut shorter = rhs.clone();
@@ -191,6 +227,19 @@ impl BitOr for Clause {
 /// The expression carries a shared [`VariableTable`] so the serializers
 /// ([`to_json`](Expression::to_json) / [`to_algebraic`](Expression::to_algebraic))
 /// can restore the original variable names without taking extra arguments.
+///
+/// # Examples
+///
+/// ```
+/// use beast::{Clause, Expression};
+///
+/// // x0 | x1 over two variables: an OR of two single-literal clauses.
+/// let x0 = Clause { terms: vec![true, false], mask: vec![true, false] };
+/// let x1 = Clause { terms: vec![false, true], mask: vec![false, true] };
+/// let e = Expression::new(vec![x0, x1]);
+/// assert_eq!(e.clauses().len(), 2);
+/// assert!(!e.is_true() && !e.is_false());
+/// ```
 #[derive(Clone, Debug, Default)]
 pub struct Expression {
     clauses: Vec<Clause>,
@@ -215,11 +264,29 @@ impl Expression {
     }
 
     /// The constant `false` (empty disjunction).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use beast::Expression;
+    ///
+    /// assert!(Expression::r#false().is_false());
+    /// assert_eq!(Expression::r#false().to_json().to_string(), "false");
+    /// ```
     pub fn r#false() -> Self {
         Expression::default()
     }
 
     /// The constant `true` (a single empty-conjunction clause).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use beast::Expression;
+    ///
+    /// assert!(Expression::r#true().is_true());
+    /// assert_eq!(Expression::r#true().to_json().to_string(), "true");
+    /// ```
     pub fn r#true() -> Self {
         Expression {
             clauses: vec![Clause {
@@ -263,6 +330,17 @@ impl Expression {
     /// Constants serialize to the JSON booleans `true` / `false`. Otherwise the
     /// `false` sentinel clauses are dropped; a single remaining clause is
     /// emitted directly and multiple clauses are wrapped in `{"or": [...]}`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use beast::{Clause, Expression};
+    ///
+    /// // A single-literal expression emits the bare literal (no `or` wrapper).
+    /// let x0 = Clause { terms: vec![true], mask: vec![true] };
+    /// let e = Expression::new(vec![x0]);
+    /// assert_eq!(e.to_json().to_string(), r#"{"var":"x0"}"#);
+    /// ```
     pub fn to_json(&self) -> Json {
         if self.is_true() {
             return Json::Bool(true);
@@ -313,6 +391,21 @@ impl Expression {
     /// `!(c1 | c2 | ...) = !c1 & !c2 & ...`, where the inverse of a clause is the
     /// OR of its negated literals. The fold starts from the TRUE identity, so
     /// `!false == true` and `!true == false`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use beast::{Clause, Expression};
+    ///
+    /// // !(x0) == !x0
+    /// let x0 = Clause { terms: vec![true], mask: vec![true] };
+    /// let e = Expression::new(vec![x0]);
+    /// assert_eq!(e.inverse().to_json().to_string(), r#"{"!":[{"var":"x0"}]}"#);
+    ///
+    /// // The constants invert into each other.
+    /// assert!(Expression::r#true().inverse().is_false());
+    /// assert!(Expression::r#false().inverse().is_true());
+    /// ```
     pub fn inverse(&self) -> Expression {
         let mut acc = Expression::r#true();
         for clause in &self.clauses {
@@ -412,7 +505,9 @@ fn expression_to_minterms(expr: &Expression, num_vars: usize) -> Vec<Term> {
             seen[m as usize] = true;
         }
     }
-    (0..(1u32 << num_vars)).filter(|&m| seen[m as usize]).collect()
+    (0..(1u32 << num_vars))
+        .filter(|&m| seen[m as usize])
+        .collect()
 }
 
 /// Converts a selected `Implicant` to a [`Clause`] over `num_vars` variables.
@@ -434,9 +529,31 @@ fn implicant_to_clause(imp: &Implicant, num_vars: usize) -> Clause {
 /// Returns a simplified expression from a JsonLogic expression.
 ///
 /// Converts the input to DNF (building a [`VariableTable`]), then minimizes it.
-/// Returns `Err` with a human-readable message for malformed input, unknown
-/// operators, or more than [`quine_mccluskey::MAX_VARIABLES`] distinct
+///
+/// # Errors
+///
+/// Returns `Err` with a human-readable message when the input is not a valid
+/// boolean expression: a node with anything other than exactly one operator key,
+/// an unsupported operator, an operator with the wrong arity, a non-string
+/// `var` name, or more than [`quine_mccluskey::MAX_VARIABLES`] distinct
 /// variables.
+///
+/// # Examples
+///
+/// ```
+/// use beast::{json::Json, simplify_json};
+///
+/// // (a & b) | (a & !b) simplifies to just `a`.
+/// let json = Json::parse(
+///     r#"{"or":[{"and":[{"var":"a"},{"var":"b"}]},{"and":[{"var":"a"},{"!":[{"var":"b"}]}]}]}"#,
+/// )
+/// .unwrap();
+/// assert_eq!(simplify_json(&json).unwrap().to_json().to_string(), r#"{"var":"a"}"#);
+///
+/// // Comparison operators are not boolean connectives and are rejected.
+/// let bad = Json::parse(r#"{">":[{"var":"a"},{"var":"b"}]}"#).unwrap();
+/// assert!(simplify_json(&bad).is_err());
+/// ```
 pub fn simplify_json(json: &Json) -> Result<Expression, String> {
     let mut table = VariableTable::new();
     let dnf = converter::to_dnf(json, &mut table)?;
@@ -449,6 +566,20 @@ pub fn simplify_json(json: &Json) -> Result<Expression, String> {
 /// The number of variables is taken from the attached [`VariableTable`].
 /// Constants are handled directly: a tautology returns the constant `true` and
 /// an unsatisfiable expression returns the constant `false`.
+///
+/// # Examples
+///
+/// ```
+/// use beast::{json::Json, simplify, simplify_json};
+///
+/// // `simplify` operates on a DNF `Expression`; build one via the converter.
+/// let dnf = simplify_json(
+///     &Json::parse(r#"{"or":[{"var":"a"},{"var":"a"}]}"#).unwrap(),
+/// )
+/// .unwrap();
+/// // Redundant disjuncts collapse to a single literal.
+/// assert_eq!(simplify(&dnf).to_json().to_string(), r#"{"var":"a"}"#);
+/// ```
 pub fn simplify(x: &Expression) -> Expression {
     let table = x.table.clone();
     if x.is_true() {
@@ -475,10 +606,7 @@ pub fn simplify(x: &Expression) -> Expression {
         .iter()
         .map(|imp| implicant_to_clause(imp, num_vars))
         .collect();
-    Expression {
-        clauses,
-        table,
-    }
+    Expression { clauses, table }
 }
 
 #[cfg(test)]
@@ -573,5 +701,97 @@ mod tests {
         let e = Expression::new(vec![c0, c1]);
         let minterms = expression_to_minterms(&e, 2);
         assert_eq!(minterms, vec![1, 3]);
+    }
+
+    #[test]
+    fn and_assign_swaps_to_widen_shorter_clause() {
+        // The lhs is narrower than the rhs: the wider operand must survive.
+        let mut narrow = literal(0, 1, true); // width 1
+        narrow.and_assign(&literal(2, 3, true)); // width 3
+        assert_eq!(narrow.to_algebraic(&VariableTable::new()), "x0 & x2");
+    }
+
+    #[test]
+    fn default_expression_is_false() {
+        let e = Expression::default();
+        assert!(e.is_false());
+        assert!(!e.is_true());
+        assert_eq!(e.clauses().len(), 0);
+    }
+
+    #[test]
+    fn empty_conjunction_clause_is_true_at_expression_level() {
+        // A TRUE clause anywhere makes the whole disjunction TRUE.
+        let e = Expression::new(vec![
+            literal(0, 1, true),
+            Clause {
+                terms: vec![false],
+                mask: vec![false],
+            },
+        ]);
+        assert!(e.is_true());
+        assert_eq!(e.to_json().to_string(), "true");
+    }
+
+    #[test]
+    fn with_table_round_trips_names() {
+        let mut table = VariableTable::new();
+        table.index_of("rain").unwrap();
+        let e = Expression::new(vec![literal(0, 1, true)]).with_table(Rc::new(table));
+        assert_eq!(e.to_algebraic(), "rain");
+        assert_eq!(e.to_json().to_string(), r#"{"var":"rain"}"#);
+    }
+
+    #[test]
+    fn to_json_drops_false_sentinel_clauses() {
+        // A real literal ORed with a FALSE sentinel keeps only the literal.
+        let e = Expression::new(vec![
+            literal(0, 1, true),
+            Clause {
+                terms: vec![],
+                mask: vec![],
+            },
+        ]);
+        assert_eq!(e.to_json().to_string(), r#"{"var":"x0"}"#);
+    }
+
+    #[test]
+    fn multi_clause_expression_wraps_in_or() {
+        let e = Expression::new(vec![literal(0, 2, true), literal(1, 2, false)]);
+        assert_eq!(
+            e.to_json().to_string(),
+            r#"{"or":[{"var":"x0"},{"!":[{"var":"x1"}]}]}"#
+        );
+    }
+
+    #[test]
+    fn implicant_to_clause_maps_care_bits_only() {
+        // Implicant "x1" over 2 vars: bit 1 fixed to 1, bit 0 don't-care.
+        let imp = Implicant { v: 0b10, d: 0b01 };
+        let c = implicant_to_clause(&imp, 2);
+        assert_eq!(c.mask, vec![false, true]);
+        assert!(c.terms[1]);
+    }
+
+    #[test]
+    fn expression_equality_ignores_table() {
+        // Logical identity is clause equality; the table is serialization
+        // metadata only.
+        let a = Expression::new(vec![literal(0, 1, true)]);
+        let mut table = VariableTable::new();
+        table.index_of("a").unwrap();
+        let b = Expression::new(vec![literal(0, 1, true)]).with_table(Rc::new(table));
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn simplify_collapses_redundant_clauses() {
+        // x0 | x0 -> x0 (table with one variable so num_vars == 1).
+        let mut table = VariableTable::new();
+        table.index_of("a").unwrap();
+        let e = Expression::new(vec![literal(0, 1, true), literal(0, 1, true)])
+            .with_table(Rc::new(table));
+        let s = simplify(&e);
+        assert_eq!(s.to_algebraic(), "a");
     }
 }
