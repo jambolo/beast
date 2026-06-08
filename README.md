@@ -1,5 +1,8 @@
 # Beast
 
+[![CI](https://github.com/jambolo/beast/actions/workflows/ci.yml/badge.svg)](https://github.com/jambolo/beast/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/jambolo/beast/graph/badge.svg)](https://codecov.io/gh/jambolo/beast)
+
 **Beast** is a boolean expression simplifier. It reads an arbitrary boolean expression, expressed as JSON, and writes back an equivalent expression that has been logically simplified.
 
 ## Overview
