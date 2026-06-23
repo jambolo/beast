@@ -25,7 +25,7 @@ The compiled binary is `target/debug/beast` (or `target/release/beast` after `ca
 
 ## Command-line syntax
 
-```
+```text
 beast '<expression>'
 beast < expression.json
 ```
@@ -54,8 +54,8 @@ A JsonLogic expression is an object with a single key — the operator — whose
 | Operator | Meaning | Example |
 | --- | --- | --- |
 | `and` | logical AND | `{"and": [a, b, ...]}` |
-| `or`  | logical OR  | `{"or": [a, b, ...]}` |
-| `!`   | logical NOT | `{"!": [a]}` |
+| `or` | logical OR | `{"or": [a, b, ...]}` |
+| `!` | logical NOT | `{"!": [a]}` |
 | `var` | variable reference | `{"var": "name"}` |
 
 The boolean literals `true` and `false` are also accepted.
@@ -68,9 +68,9 @@ For convenience, Beast also accepts the following operators on input:
 
 | Operator | Meaning | Example |
 | --- | --- | --- |
-| `xor`  | exclusive OR (true when an odd number of operands are true) | `{"xor": [a, b, ...]}` |
+| `xor` | exclusive OR (true when an odd number of operands are true) | `{"xor": [a, b, ...]}` |
 | `nand` | NOT AND | `{"nand": [a, b, ...]}` |
-| `nor`  | NOT OR  | `{"nor": [a, b, ...]}` |
+| `nor` | NOT OR | `{"nor": [a, b, ...]}` |
 
 > **Note:** `xor`, `nand`, and `nor` are *not* part of the standard JsonLogic specification — they are Beast extensions. Other JsonLogic implementations will not recognize them. They are accepted on input only; Beast rewrites them in terms of `and`, `or`, and `!`, so the simplified output never contains these operators.
 

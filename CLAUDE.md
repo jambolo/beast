@@ -4,11 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Beast is **functional**: the full JsonLogic → DNF → minimized DNF → JsonLogic pipeline works end to end. `simplify` / `simplify_json` are implemented, the Quine–McCluskey `minimize` does prime-implicant generation *and* selection (essential PIs + Petrick's method with a greedy fallback for large charts), and the JsonLogic converter (`beast/src/converter.rs`) and variable-name table (`beast/src/variable_table.rs`) exist. `cargo build`, `cargo test` (44 tests), and `cargo clippy` are clean.
+Beast is **functional**: the full JsonLogic → DNF → minimized DNF → JsonLogic pipeline works end to end. `simplify` / `simplify_json` are implemented, the Quine–McCluskey `minimize` does prime-implicant generation *and* selection (essential PIs + Petrick's method with a greedy fallback for large charts), and the JsonLogic converter (`beast/src/converter.rs`) and variable-name table (`beast/src/variable_table.rs`) exist. `cargo build`, `cargo test` (100 tests), and `cargo clippy` are clean.
 
-One intentional deviation from `plan.md`: `simplify_json` returns `Result<Expression, String>` (not `Expression`) so the CLI can surface converter errors (unknown operator, bad arity, >32 variables) on stderr.
-
-**`plan.md` is the original roadmap.** It is written for agent consumption with dependency-ordered tasks (`ID / deps / files / action / acceptance`), locked decisions, and a definition of done; the phased task list is now complete. Consult it for the rationale behind design decisions.
+One intentional design choice: `simplify_json` returns `Result<Expression, String>` (not `Expression`) so the CLI can surface converter errors (unknown operator, bad arity, >32 variables) on stderr.
 
 ## Build & run
 
@@ -47,6 +45,7 @@ cargo clippy                # lints (clean)
 Beast is a thin CLI wrapping two conceptual libraries; data flows: **JsonLogic → DNF → minimized DNF → JsonLogic**. The `beast` crate owns input parsing and output serialization; the actual simplification is delegated to the `quine-mccluskey` crate.
 
 Workspace layout — two crates:
+
 - `beast/` — `src/lib.rs` (data model, algebra, `simplify*`), `src/json.rs` (in-crate JSON), `src/main.rs` (CLI). Depends on `quine-mccluskey`.
 - `quine-mccluskey/` — `src/lib.rs` (the simplifier; lib name `quine_mccluskey`). Re-exported from `beast` as `beast::quine_mccluskey`.
 
@@ -65,10 +64,10 @@ Workspace layout — two crates:
 - `Implicant { v: Term, d: Term }` (in `quine-mccluskey/src/lib.rs`): `v` = fixed bit values, `d` = don't-care mask. `Term` is `u32`, which caps the design at **`MAX_VARIABLES = 32`** distinct variables.
 - The bridge between the `Clause` (terms/mask) representation and the `Term`/`Implicant` (bitmask) representation lives in `beast/src/lib.rs`: `expression_to_minterms` (DNF → ON-set minterms over `num_vars`) and `implicant_to_clause` (selected implicant → clause).
 
-## Locked decisions (do not re-litigate; see `plan.md` §0)
+## Locked decisions (do not re-litigate)
 
 - **I/O format is JsonLogic** (operator-as-key objects, one key per node) for both input and output: `to_json` emits objects (`{"or":[...]}`, negation `{"!":[...]}`, variable `{"var":"name"}`), with single-element `and`/`or` collapsed to the bare child and constants emitted as JSON `true`/`false`.
-- **Future enhancement (out of scope for the current plan):** an algebraic I/O mode — emitting algebraic output (via a CLI flag using `to_algebraic`) and accepting algebraic input (via a new algebraic parser, which does not exist yet). See `plan.md` §7. For now, `to_algebraic` is an internal/comparison helper only.
+- **Future enhancement (out of scope):** an algebraic I/O mode — emitting algebraic output (via a CLI flag using `to_algebraic`) and accepting algebraic input (via a new algebraic parser, which does not exist yet). For now, `to_algebraic` is an internal/comparison helper only. Naming convention for the eventual algebraic parser: adjacent alphanumerics mean implicit multiplication/AND (`ab` = `a & b`); multi-character names are prefixed with `$` and continue while the next char is in `[0-9a-zA-Z_]` (e.g. `$velocity * 2 + $pressure` = two vars; `a$bc + d` = `a` AND var `bc`, OR `d`).
 - **Variable names are arbitrary** user-supplied strings, mapped to bit indices and preserved in output.
 - **Accepted operators**: standard `and`, `or`, `!`, `var`, and boolean literals `true`/`false`, PLUS non-standard Beast extensions `xor`, `nand`, `nor`. The extensions are **input-only** — desugared to `and`/`or`/`!` during conversion and never emitted on output. All other JsonLogic operators (comparison/numeric/array/string) are rejected.
 
