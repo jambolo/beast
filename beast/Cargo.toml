@@ -1,9 +1,10 @@
 [package]
 name = "beast"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 description = "Boolean expression simplifier (Quine-McCluskey over disjunctive normal form)"
-license = "MIT"
+license.workspace = true
 
 # JSON parsing/serialization is provided by the in-crate `json` module; the only
 # dependency is the workspace's quine-mccluskey simplifier crate.

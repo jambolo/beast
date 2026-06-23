@@ -1,13 +1,10 @@
 //! Mapping between user-supplied variable names and internal bit indices.
 //!
-//! Variables in a boolean expression are referred to internally by bit index
-//! (so they fit in the `Term` bitmask used by the simplifier). Users, however,
-//! name their variables with arbitrary strings. A [`VariableTable`] assigns each
-//! distinct name a stable index on first use and restores the original name when
-//! serializing the simplified result.
+//! Variables in a boolean expression are referred to internally by bit index (so they fit in the `Term` bitmask used by the
+//! simplifier). Users, however, name their variables with arbitrary strings. A [`VariableTable`] assigns each distinct name a
+//! stable index on first use and restores the original name when serializing the simplified result.
 //!
-//! The number of distinct variables is bounded by
-//! [`quine_mccluskey::MAX_VARIABLES`]; registering more than that is an error.
+//! The number of distinct variables is bounded by [`quine_mccluskey::MAX_VARIABLES`]; registering more than that is an error.
 
 use std::collections::HashMap;
 
@@ -15,9 +12,8 @@ use quine_mccluskey::MAX_VARIABLES;
 
 /// A bidirectional map between variable names and bit indices.
 ///
-/// Indices are assigned densely starting from 0 in the order names are first
-/// seen, so [`len`](VariableTable::len) is also one past the largest index in
-/// use.
+/// Indices are assigned densely starting from 0 in the order names are first seen, so [`len`](VariableTable::len) is also one past
+/// the largest index in use.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct VariableTable {
     /// Index -> name.
@@ -38,9 +34,8 @@ impl VariableTable {
     ///
     /// # Errors
     ///
-    /// Returns `Err` when `name` is previously unseen and the table already holds
-    /// [`quine_mccluskey::MAX_VARIABLES`] distinct names. An already-known name
-    /// always succeeds, even once the table is full.
+    /// Returns `Err` when `name` is previously unseen and the table already holds [`quine_mccluskey::MAX_VARIABLES`] distinct
+    /// names. An already-known name always succeeds, even once the table is full.
     ///
     /// # Examples
     ///

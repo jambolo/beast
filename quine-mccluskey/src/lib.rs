@@ -1,32 +1,28 @@
 //! Quine-McCluskey simplifier (Library B in the architecture).
 //!
-//! [`minimize`] takes a boolean function's on-set (`min_terms`) and don't-care
-//! set and returns a minimal set of prime [`Implicant`]s covering the on-set.
-//! The algorithm has two stages:
+//! [`minimize`] takes a boolean function's on-set (`min_terms`) and don't-care set and returns a minimal set of prime
+//! [`Implicant`]s covering the on-set. The algorithm has two stages:
 //!
-//! 1. **Prime-implicant generation** — repeatedly combine implicants that differ
-//!    in a single bit until none can be combined; the uncombined ones are prime.
-//! 2. **Selection** — pick all essential prime implicants, then cover any
-//!    remaining minterms with Petrick's method (exact) or a greedy fallback for
-//!    large charts.
+//! 1. **Prime-implicant generation** — repeatedly combine implicants that differ in a single bit until none can be combined; the
+//!    uncombined ones are prime.
+//! 2. **Selection** — pick all essential prime implicants, then cover any remaining minterms with Petrick's method (exact) or a
+//!    greedy fallback for large charts.
 //!
-//! `Term` is a `u32`, which caps the design at `MAX_VARIABLES = 32` distinct
-//! variables.
+//! `Term` is a `u32`, which caps the design at `MAX_VARIABLES = 32` distinct variables.
 
 use std::collections::BTreeSet;
 
 /// Maximum number of distinct variables (bounded by the width of `Term`).
 pub const MAX_VARIABLES: usize = 32;
 
-/// Above this many product terms during Petrick's method, fall back to a greedy
-/// cover to avoid exponential blow-up.
+/// Above this many product terms during Petrick's method, fall back to a greedy cover to avoid exponential blow-up.
 const PETRICK_PRODUCT_LIMIT: usize = 65_536;
 
 /// A bit-packed term: bit `i` corresponds to variable `i`.
 pub type Term = u32;
 
-/// A product term in the simplification: `v` holds the fixed bit values and `d`
-/// is the don't-care mask (a set bit means "this variable is eliminated").
+/// A product term in the simplification: `v` holds the fixed bit values and `d` is the don't-care mask (a set bit means "this
+/// variable is eliminated").
 ///
 /// # Examples
 ///
@@ -41,11 +37,10 @@ pub type Term = u32;
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Implicant {
-    /// Fixed bit values: where bit `i` is a care bit, it holds variable `i`'s
-    /// value. Bits flagged in `d` are meaningless and conventionally cleared.
+    /// Fixed bit values: where bit `i` is a care bit, it holds variable `i`'s value. Bits flagged in `d` are meaningless and
+    /// conventionally cleared.
     pub v: Term,
-    /// Don't-care mask: a set bit marks the corresponding variable as
-    /// eliminated from this product term.
+    /// Don't-care mask: a set bit marks the corresponding variable as eliminated from this product term.
     pub d: Term,
 }
 
@@ -53,14 +48,13 @@ fn is_power_of_2(x: Term) -> bool {
     x != 0 && ((x - 1) & x) == 0
 }
 
-/// Returns true if two implicants have the same don't-care mask and their fixed
-/// values differ in exactly one bit (so they can be combined).
+/// Returns true if two implicants have the same don't-care mask and their fixed values differ in exactly one bit (so they can be
+/// combined).
 fn differ_by_one_bit(i0: &Implicant, i1: &Implicant) -> bool {
     i0.d == i1.d && is_power_of_2(i0.v ^ i1.v)
 }
 
-/// Combines two one-bit-apart implicants into one with the differing bit turned
-/// into a don't-care.
+/// Combines two one-bit-apart implicants into one with the differing bit turned into a don't-care.
 fn combine(i0: &Implicant, i1: &Implicant) -> Implicant {
     debug_assert!(differ_by_one_bit(i0, i1));
     let d = i0.d | (i0.v ^ i1.v);
@@ -68,8 +62,7 @@ fn combine(i0: &Implicant, i1: &Implicant) -> Implicant {
     Implicant { v, d }
 }
 
-/// Returns true if `i0` covers `i1` (every care bit of `i0` is also fixed in
-/// `i1` with the same value).
+/// Returns true if `i0` covers `i1` (every care bit of `i0` is also fixed in `i1` with the same value).
 fn covers(i0: &Implicant, i1: &Implicant) -> bool {
     (i0.d | i1.d) == i0.d && i0.v == (i1.v & !i0.d)
 }
@@ -79,8 +72,7 @@ fn covers_term(i: &Implicant, t: Term) -> bool {
     covers(i, &Implicant { v: t, d: 0 })
 }
 
-/// Generates the prime implicants of the function whose terms (on-set plus
-/// don't-cares) are `all`.
+/// Generates the prime implicants of the function whose terms (on-set plus don't-cares) are `all`.
 fn prime_implicants(all: &[Term]) -> Vec<Implicant> {
     let mut current: Vec<Implicant> = all.iter().map(|&t| Implicant { v: t, d: 0 }).collect();
     let mut primes: Vec<Implicant> = Vec::new();
@@ -134,8 +126,8 @@ fn literal_count(imp: &Implicant, num_variables: usize) -> u32 {
 
 /// Selects a minimal-size set of prime implicants covering every minterm.
 ///
-/// Essential prime implicants are taken first; remaining minterms are covered by
-/// Petrick's method, or a greedy cover when the chart is large.
+/// Essential prime implicants are taken first; remaining minterms are covered by Petrick's method, or a greedy cover when the chart
+/// is large.
 fn select(primes: &[Implicant], min_terms: &[Term], num_variables: usize) -> Vec<Implicant> {
     // chart[k] = indices of primes covering min_terms[k].
     let chart: Vec<Vec<usize>> = min_terms
@@ -176,13 +168,7 @@ fn select(primes: &[Implicant], min_terms: &[Term], num_variables: usize) -> Vec
 }
 
 /// Covers the still-uncovered minterms, mutating `selected`.
-fn cover_remaining(
-    selected: &mut [bool],
-    chart: &[Vec<usize>],
-    uncovered: &[usize],
-    primes: &[Implicant],
-    num_variables: usize,
-) {
+fn cover_remaining(selected: &mut [bool], chart: &[Vec<usize>], uncovered: &[usize], primes: &[Implicant], num_variables: usize) {
     // Estimate Petrick's product size; fall back to greedy if it would explode.
     let mut estimate: usize = 1;
     for &k in uncovered {
@@ -198,16 +184,9 @@ fn cover_remaining(
     }
 }
 
-/// Petrick's method: build the product-of-sums "(prime choices for each
-/// minterm)", multiply out to sum-of-products with absorption, and pick the
-/// product with the fewest primes (ties broken by fewest literals).
-fn petrick(
-    selected: &mut [bool],
-    chart: &[Vec<usize>],
-    uncovered: &[usize],
-    primes: &[Implicant],
-    num_variables: usize,
-) {
+/// Petrick's method: build the product-of-sums "(prime choices for each minterm)", multiply out to sum-of-products with absorption,
+/// and pick the product with the fewest primes (ties broken by fewest literals).
+fn petrick(selected: &mut [bool], chart: &[Vec<usize>], uncovered: &[usize], primes: &[Implicant], num_variables: usize) {
     let mut products: Vec<BTreeSet<usize>> = vec![BTreeSet::new()];
     for &k in uncovered {
         let mut next: Vec<BTreeSet<usize>> = Vec::new();
@@ -236,14 +215,8 @@ fn petrick(
 
     let best = products.iter().min_by(|a, b| {
         a.len().cmp(&b.len()).then_with(|| {
-            let la: u32 = a
-                .iter()
-                .map(|&i| literal_count(&primes[i], num_variables))
-                .sum();
-            let lb: u32 = b
-                .iter()
-                .map(|&i| literal_count(&primes[i], num_variables))
-                .sum();
+            let la: u32 = a.iter().map(|&i| literal_count(&primes[i], num_variables)).sum();
+            let lb: u32 = b.iter().map(|&i| literal_count(&primes[i], num_variables)).sum();
             la.cmp(&lb)
         })
     });
@@ -254,8 +227,7 @@ fn petrick(
     }
 }
 
-/// Greedy fallback: repeatedly pick the prime covering the most still-uncovered
-/// minterms.
+/// Greedy fallback: repeatedly pick the prime covering the most still-uncovered minterms.
 fn greedy(selected: &mut [bool], chart: &[Vec<usize>], uncovered: &[usize]) {
     let mut remaining: BTreeSet<usize> = uncovered.iter().copied().collect();
     while !remaining.is_empty() {
@@ -265,10 +237,7 @@ fn greedy(selected: &mut [bool], chart: &[Vec<usize>], uncovered: &[usize]) {
             if is_selected {
                 continue;
             }
-            let count = remaining
-                .iter()
-                .filter(|&&k| chart[k].contains(&pi))
-                .count();
+            let count = remaining.iter().filter(|&&k| chart[k].contains(&pi)).count();
             if count > best_count {
                 best_count = count;
                 best_pi = Some(pi);
@@ -284,19 +253,14 @@ fn greedy(selected: &mut [bool], chart: &[Vec<usize>], uncovered: &[usize]) {
     }
 }
 
-/// Minimizes a boolean function given its on-set (`min_terms`) and don't-care
-/// set over `num_variables` variables, returning a minimal set of prime
-/// implicants covering the on-set.
+/// Minimizes a boolean function given its on-set (`min_terms`) and don't-care set over `num_variables` variables, returning a
+/// minimal set of prime implicants covering the on-set.
 ///
-/// Duplicate minterms are ignored. An empty on-set yields an empty result (the
-/// constant `false`). Don't-cares may be used to enlarge implicants but are
-/// never required to be covered, so a prime implicant that covers only
-/// don't-cares is discarded.
+/// Duplicate minterms are ignored. An empty on-set yields an empty result (the constant `false`). Don't-cares may be used to
+/// enlarge implicants but are never required to be covered, so a prime implicant that covers only don't-cares is discarded.
 ///
-/// Exact minimality is guaranteed while Petrick's method is used; for very
-/// large prime-implicant charts the selection falls back to a greedy cover (see
-/// [`PETRICK_PRODUCT_LIMIT`](self) in the crate source) that is correct but may
-/// not be strictly minimal.
+/// Exact minimality is guaranteed while Petrick's method is used; for very large prime-implicant charts the selection falls back to
+/// a greedy cover (see [`PETRICK_PRODUCT_LIMIT`](self) in the crate source) that is correct but may not be strictly minimal.
 ///
 /// # Examples
 ///
@@ -328,8 +292,7 @@ pub fn minimize(min_terms: &[Term], dont_cares: &[Term], num_variables: usize) -
 
     let mut primes = prime_implicants(&all);
 
-    // Drop prime implicants that cover none of the required minterms (these can
-    // arise from don't-cares only).
+    // Drop prime implicants that cover none of the required minterms (these can arise from don't-cares only).
     primes.retain(|p| min_terms.iter().any(|&m| covers_term(p, m)));
 
     select(&primes, &min_terms, num_variables)
@@ -401,8 +364,8 @@ mod tests {
 
     #[test]
     fn textbook_cyclic_chart() {
-        // Classic cyclic prime-implicant chart: {0,1,2,5,6,7} over 3 vars has no
-        // essential PIs and a minimal cover of three implicants.
+        // Classic cyclic prime-implicant chart: {0,1,2,5,6,7} over 3 vars has no essential PIs and a minimal cover of three
+        // implicants.
         let min_terms = [0, 1, 2, 5, 6, 7];
         let result = minimize(&min_terms, &[], 3);
         assert_eq!(result.len(), 3, "minimal cover should be 3 implicants");
@@ -417,8 +380,8 @@ mod tests {
         // f with minterm {1}, don't-care {3} over 2 vars -> x0 (v=1, d=2).
         let result = minimize(&[1], &[3], 2);
         assert!(cover_value(&result, 1));
-        // The result need not cover the don't-care's complement region beyond
-        // what helps; but it must cover minterm 1 and not minterm 0.
+        // The result need not cover the don't-care's complement region beyond what helps; but it must cover minterm 1 and not
+        // minterm 0.
         assert!(!cover_value(&result, 0));
     }
 
@@ -436,7 +399,7 @@ mod tests {
         assert!(differ_by_one_bit(&a, &b)); // one bit apart
         assert!(!differ_by_one_bit(&a, &c)); // two bits apart
         assert!(!differ_by_one_bit(&a, &a)); // identical: zero bits apart
-                                             // Differing don't-care masks can never be combined.
+        // Differing don't-care masks can never be combined.
         let d = Implicant { v: 0b00, d: 0b10 };
         assert!(!differ_by_one_bit(&a, &d));
     }
@@ -465,8 +428,7 @@ mod tests {
 
     #[test]
     fn literal_count_handles_thirty_two_variables() {
-        // The mask computation special-cases num_variables >= 32 to avoid a
-        // shift overflow; exercise that branch.
+        // The mask computation special-cases num_variables >= 32 to avoid a shift overflow; exercise that branch.
         assert_eq!(literal_count(&Implicant { v: 0, d: 0 }, 32), 32);
         assert_eq!(literal_count(&Implicant { v: 0, d: Term::MAX }, 32), 0);
     }
@@ -487,8 +449,8 @@ mod tests {
 
     #[test]
     fn dont_care_only_implicants_are_dropped() {
-        // The minterm {0} alone is the implicant (v=0, d=0); the don't-care at 3
-        // must not introduce an implicant that fails to cover minterm 0.
+        // The minterm {0} alone is the implicant (v=0, d=0); the don't-care at 3 must not introduce an implicant that fails to
+        // cover minterm 0.
         let result = minimize(&[0], &[3], 2);
         assert!(cover_value(&result, 0));
         assert!(!cover_value(&result, 3));

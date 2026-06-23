@@ -1,10 +1,9 @@
-//! End-to-end tests for the full JsonLogic -> DNF -> minimize -> JsonLogic
-//! pipeline (`simplify_json`).
+//! End-to-end tests for the full JsonLogic -> DNF -> minimize -> JsonLogic pipeline (`simplify_json`).
 
 use std::collections::HashMap;
 
 use beast::json::Json;
-use beast::{simplify_json, Expression};
+use beast::{Expression, simplify_json};
 
 /// Simplifies a JsonLogic string, returning the compact JsonLogic output.
 fn simplify_str(text: &str) -> String {
@@ -20,7 +19,7 @@ fn eval(expr: &Expression, assign: &HashMap<&str, bool>) -> bool {
     if expr.is_false() {
         return false;
     }
-    expr.clauses().iter().filter(|c| !c.is_false()).any(|c| {
+    expr.product_terms().iter().filter(|c| !c.is_false()).any(|c| {
         (0..c.terms.len()).all(|i| {
             if c.mask[i] {
                 let name = expr.table().name_of(i);
@@ -34,25 +33,18 @@ fn eval(expr: &Expression, assign: &HashMap<&str, bool>) -> bool {
 
 #[test]
 fn readme_example_reduces_to_a() {
-    let input =
-        r#"{"or":[{"and":[{"var":"a"},{"var":"b"}]},{"and":[{"var":"a"},{"!":{"var":"b"}}]}]}"#;
+    let input = r#"{"or":[{"and":[{"var":"a"},{"var":"b"}]},{"and":[{"var":"a"},{"!":{"var":"b"}}]}]}"#;
     assert_eq!(simplify_str(input), r#"{"var":"a"}"#);
 }
 
 #[test]
 fn tautology_becomes_true() {
-    assert_eq!(
-        simplify_str(r#"{"or":[{"var":"a"},{"!":[{"var":"a"}]}]}"#),
-        "true"
-    );
+    assert_eq!(simplify_str(r#"{"or":[{"var":"a"},{"!":[{"var":"a"}]}]}"#), "true");
 }
 
 #[test]
 fn contradiction_becomes_false() {
-    assert_eq!(
-        simplify_str(r#"{"and":[{"var":"a"},{"!":[{"var":"a"}]}]}"#),
-        "false"
-    );
+    assert_eq!(simplify_str(r#"{"and":[{"var":"a"},{"!":[{"var":"a"}]}]}"#), "false");
 }
 
 #[test]
@@ -77,8 +69,7 @@ fn malformed_operator_is_rejected() {
     assert!(simplify_json(&json).is_err());
 }
 
-/// Builds JsonLogic input as the sum (OR) of the given minterms over 3 named
-/// variables a (bit 0), b (bit 1), c (bit 2).
+/// Builds JsonLogic input as the sum (OR) of the given minterms over 3 named variables a (bit 0), b (bit 1), c (bit 2).
 fn input_from_minterms(minterms: &[u32]) -> Json {
     if minterms.is_empty() {
         return Json::Bool(false);
@@ -89,10 +80,7 @@ fn input_from_minterms(minterms: &[u32]) -> Json {
         .map(|&m| {
             let literals: Vec<Json> = (0..3)
                 .map(|i| {
-                    let var = Json::Object(vec![(
-                        "var".to_string(),
-                        Json::String(names[i].to_string()),
-                    )]);
+                    let var = Json::Object(vec![("var".to_string(), Json::String(names[i].to_string()))]);
                     if m & (1 << i) != 0 {
                         var
                     } else {
@@ -108,8 +96,7 @@ fn input_from_minterms(minterms: &[u32]) -> Json {
 
 #[test]
 fn simplify_preserves_truth_table_over_three_vars() {
-    // DOD-4: for every boolean function of 3 variables, simplifying preserves
-    // the truth table and produces valid DNF output.
+    // DOD-4: for every boolean function of 3 variables, simplifying preserves the truth table and produces valid DNF output.
     for table in 0u32..256 {
         let minterms: Vec<u32> = (0..8).filter(|&m| table & (1 << m) != 0).collect();
         let input = input_from_minterms(&minterms);
