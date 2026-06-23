@@ -1,35 +1,27 @@
 //! Converter (Library A): JsonLogic boolean expression -> DNF [`Expression`].
 //!
-//! [`to_dnf`] is a recursive descent over a JsonLogic tree that reuses the
-//! boolean algebra on [`Expression`]: `|` concatenates clauses, `&` distributes
-//! (product of sums -> sum of products), and [`Expression::inverse`] applies De
-//! Morgan. Because every operator collapses its operands into DNF as the tree is
-//! walked, the result is always in DNF.
+//! [`to_dnf`] is a recursive descent over a JsonLogic tree that reuses the boolean algebra on [`Expression`]: `|` concatenates
+//! product terms, `&` distributes (product of sums -> sum of products), and [`Expression::inverse`] applies De Morgan. Because
+//! every operator collapses its operands into DNF as the tree is walked, the result is always in DNF.
 //!
-//! Accepted operators: the standard JsonLogic `var`, `!`, `and`, `or`, plus the
-//! boolean literals `true` / `false`, plus the non-standard Beast extensions
-//! `xor`, `nand`, `nor` (input-only; desugared here and never emitted on
-//! output). Every other operator is rejected.
+//! Accepted operators: the standard JsonLogic `var`, `!`, `and`, `or`, plus the boolean literals `true` / `false`, plus the
+//! non-standard Beast extensions `xor`, `nand`, `nor` (input-only; desugared here and never emitted on output). Every other
+//! operator is rejected.
 
 use crate::json::Json;
 use crate::variable_table::VariableTable;
-use crate::{Clause, Expression};
+use crate::{Expression, ProductTerm};
 
-/// Parses a JsonLogic boolean expression into a DNF [`Expression`], registering
-/// variables in `table`.
+/// Parses a JsonLogic boolean expression into a DNF [`Expression`], registering variables in `table`.
 ///
 /// # Errors
 ///
-/// Returns `Err` with a human-readable message when the tree is not a valid
-/// boolean expression:
+/// Returns `Err` with a human-readable message when the tree is not a valid boolean expression:
 /// - a node object that does not have exactly one operator key,
 /// - an unsupported operator (any non-boolean JsonLogic operator),
-/// - an operator applied with the wrong arity (`!` with other than one operand,
-///   or empty `and` / `or` / `xor`),
-/// - a `var` whose value is not a string, or a bare array / number / string /
-///   null where a boolean expression was expected,
-/// - more variables than [`quine_mccluskey::MAX_VARIABLES`] (surfaced from
-///   `table`).
+/// - an operator applied with the wrong arity (`!` with other than one operand, or empty `and` / `or` / `xor`),
+/// - a `var` whose value is not a string, or a bare array / number / string / null where a boolean expression was expected,
+/// - more variables than [`quine_mccluskey::MAX_VARIABLES`] (surfaced from `table`).
 ///
 /// # Examples
 ///
@@ -42,7 +34,7 @@ use crate::{Clause, Expression};
 /// let json = Json::parse(r#"{"and":[{"var":"a"},{"or":[{"var":"b"},{"var":"c"}]}]}"#).unwrap();
 /// let mut table = VariableTable::new();
 /// let dnf = to_dnf(&json, &mut table).unwrap();
-/// assert_eq!(dnf.clauses().len(), 2);
+/// assert_eq!(dnf.product_terms().len(), 2);
 ///
 /// // Unsupported operators are rejected.
 /// let bad = Json::parse(r#"{"+":[{"var":"a"},{"var":"b"}]}"#).unwrap();
@@ -54,10 +46,7 @@ pub fn to_dnf(json: &Json, table: &mut VariableTable) -> Result<Expression, Stri
         Json::Bool(false) => Ok(Expression::r#false()),
         Json::Object(pairs) => {
             if pairs.len() != 1 {
-                return Err(format!(
-                    "each node must have exactly one operator key, found {}",
-                    pairs.len()
-                ));
+                return Err(format!("each node must have exactly one operator key, found {}", pairs.len()));
             }
             let (op, value) = &pairs[0];
             match op.as_str() {
@@ -74,9 +63,9 @@ pub fn to_dnf(json: &Json, table: &mut VariableTable) -> Result<Expression, Stri
                 other => Err(format!("unsupported operator {:?}", other)),
             }
         }
-        Json::Array(_) | Json::Null | Json::Number(_) | Json::String(_) => Err(
-            "expected a boolean expression: an operator object or a boolean literal".to_string(),
-        ),
+        Json::Array(_) | Json::Null | Json::Number(_) | Json::String(_) => {
+            Err("expected a boolean expression: an operator object or a boolean literal".to_string())
+        }
     }
 }
 
@@ -91,11 +80,10 @@ fn convert_var(value: &Json, table: &mut VariableTable) -> Result<Expression, St
     let mut mask = vec![false; width];
     terms[index] = true;
     mask[index] = true;
-    Ok(Expression::new(vec![Clause { terms, mask }]))
+    Ok(Expression::new(vec![ProductTerm { terms, mask }]))
 }
 
-/// Returns the operands of an n-ary operator. A JSON array gives its elements; a
-/// bare value is treated as a single operand.
+/// Returns the operands of an n-ary operator. A JSON array gives its elements; a bare value is treated as a single operand.
 fn args(value: &Json) -> Vec<&Json> {
     match value {
         Json::Array(items) => items.iter().collect(),
@@ -103,18 +91,14 @@ fn args(value: &Json) -> Vec<&Json> {
     }
 }
 
-/// Returns the single operand of a unary operator (`!`), accepting both the
-/// array form `{"!": [x]}` and the bare form `{"!": x}`.
+/// Returns the single operand of a unary operator (`!`), accepting both the array form `{"!": [x]}` and the bare form `{"!": x}`.
 fn unary_operand(value: &Json) -> Result<&Json, String> {
     match value {
         Json::Array(items) => {
             if items.len() == 1 {
                 Ok(&items[0])
             } else {
-                Err(format!(
-                    "\"!\" takes exactly one operand, found {}",
-                    items.len()
-                ))
+                Err(format!("\"!\" takes exactly one operand, found {}", items.len()))
             }
         }
         other => Ok(other),
@@ -147,8 +131,7 @@ fn or_fold(operands: Vec<&Json>, table: &mut VariableTable) -> Result<Expression
     Ok(acc)
 }
 
-/// Folds operands with XOR (odd-parity), desugared pairwise into `and`/`or`/`!`:
-/// `xor(p, q) = (p & !q) | (!p & q)`.
+/// Folds operands with XOR (odd-parity), desugared pairwise into `and`/`or`/`!`: `xor(p, q) = (p & !q) | (!p & q)`.
 fn xor_fold(operands: Vec<&Json>, table: &mut VariableTable) -> Result<Expression, String> {
     let mut iter = operands.into_iter();
     let first = iter
@@ -181,7 +164,7 @@ mod tests {
         if expr.is_true() {
             return true;
         }
-        expr.clauses().iter().filter(|c| !c.is_false()).any(|c| {
+        expr.product_terms().iter().filter(|c| !c.is_false()).any(|c| {
             (0..c.terms.len()).all(|i| {
                 if c.mask[i] {
                     let bit = assignment & (1 << i) != 0;
@@ -201,16 +184,15 @@ mod tests {
     }
 
     fn dnf_shape_ok(expr: &Expression) -> bool {
-        // Every clause is a flat AND of literals; nothing nested. Structurally
-        // this is always true for our representation, so we assert the model
-        // invariant: parallel vectors of equal length.
-        expr.clauses().iter().all(|c| c.terms.len() == c.mask.len())
+        // Every product term is a flat AND of literals; nothing nested. Structurally this is always true for our representation, so
+        // we assert the model invariant: parallel vectors of equal length.
+        expr.product_terms().iter().all(|c| c.terms.len() == c.mask.len())
     }
 
     #[test]
     fn var_is_single_literal() {
         let e = dnf(r#"{"var":"a"}"#).unwrap();
-        assert_eq!(e.to_algebraic(), "x0"); // table-less render
+        assert_eq!(e.to_algebraic(), "$x0"); // table-less render of synthesized `x0`
         assert!(dnf_shape_ok(&e));
     }
 

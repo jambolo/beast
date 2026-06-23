@@ -1,10 +1,7 @@
-//! Minimal, dependency-free JSON value type with a recursive-descent parser and
-//! a compact serializer.
+//! Minimal, dependency-free JSON value type with a recursive-descent parser and a compact serializer.
 //!
-//! This module provides all of the crate's JSON parsing and serialization, so
-//! Beast has no external dependencies and builds with no network access. Object
-//! keys preserve insertion order, which keeps serialized output deterministic
-//! for golden tests.
+//! This module provides all of the crate's JSON parsing and serialization, so Beast has no external dependencies and builds with no
+//! network access. Object keys preserve insertion order, which keeps serialized output deterministic for golden tests.
 
 use std::fmt;
 
@@ -23,15 +20,12 @@ pub enum Json {
 impl Json {
     /// Parses a JSON document from a string.
     ///
-    /// The whole input must be a single JSON value; trailing non-whitespace
-    /// characters are an error.
+    /// The whole input must be a single JSON value; trailing non-whitespace characters are an error.
     ///
     /// # Errors
     ///
-    /// Returns `Err` with a human-readable message (including the byte offset
-    /// where possible) for malformed input: unexpected or missing characters,
-    /// unterminated strings, invalid escapes, invalid numbers, or trailing
-    /// characters after the value.
+    /// Returns `Err` with a human-readable message (including the byte offset where possible) for malformed input: unexpected or
+    /// missing characters, unterminated strings, invalid escapes, invalid numbers, or trailing characters after the value.
     ///
     /// # Examples
     ///
@@ -214,10 +208,7 @@ impl<'a> Parser<'a> {
             Some(b't') | Some(b'f') => self.parse_bool(),
             Some(b'n') => self.parse_null(),
             Some(b) if b == b'-' || b.is_ascii_digit() => self.parse_number(),
-            Some(b) => Err(format!(
-                "unexpected character '{}' at byte {}",
-                b as char, self.pos
-            )),
+            Some(b) => Err(format!("unexpected character '{}' at byte {}", b as char, self.pos)),
             None => Err("unexpected end of input".to_string()),
         }
     }
@@ -326,9 +317,7 @@ impl<'a> Parser<'a> {
     fn parse_unicode_escape(&mut self) -> Result<char, String> {
         let mut code: u32 = 0;
         for _ in 0..4 {
-            let b = self
-                .bump()
-                .ok_or_else(|| "truncated \\u escape".to_string())?;
+            let b = self.bump().ok_or_else(|| "truncated \\u escape".to_string())?;
             let digit = (b as char)
                 .to_digit(16)
                 .ok_or_else(|| format!("invalid hex digit in \\u escape at byte {}", self.pos))?;
@@ -369,8 +358,7 @@ impl<'a> Parser<'a> {
                 _ => break,
             }
         }
-        let slice = std::str::from_utf8(&self.bytes[start..self.pos])
-            .map_err(|_| "invalid number".to_string())?;
+        let slice = std::str::from_utf8(&self.bytes[start..self.pos]).map_err(|_| "invalid number".to_string())?;
         slice
             .parse::<f64>()
             .map(Json::Number)

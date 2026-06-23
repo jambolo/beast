@@ -1,9 +1,10 @@
 [package]
 name = "quine-mccluskey"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 description = "Quine-McCluskey boolean minimization over bit-packed terms"
-license = "MIT"
+license.workspace = true
 
 # Zero external dependencies.
 
