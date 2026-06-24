@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Beast is **functional**: the full input → DNF → minimized DNF → output pipeline works end to end in **both** an algebraic syntax (the default) and JsonLogic. `simplify` / `simplify_json` / `simplify_algebraic` are implemented, the Quine–McCluskey `minimize` does prime-implicant generation *and* selection (essential PIs + Petrick's method with a greedy fallback for large charts), and both front ends — the JsonLogic converter (`beast/src/converter.rs`) and the algebraic tokenizer/parser (`beast/src/algebraic.rs`) — plus the variable-name table (`beast/src/variable_table.rs`) exist. The CLI selects input syntax with `--in`/`-i` and output syntax with `--out`/`-o` (`algebraic`|`json`; in defaults to algebraic, out defaults to in), and the algebraic output style with `--style`/`-s` (`common`|`code`|`logic`, default `common`). `cargo build`, `cargo test`, and `cargo clippy` are clean.
+Beast is **functional**: the full input → DNF → minimized DNF → output pipeline works end to end in **both** an algebraic syntax (the default) and JsonLogic. `simplify` / `simplify_json` / `simplify_algebraic` are implemented, the Quine–McCluskey `minimize` does prime-implicant generation *and* selection (essential PIs + Petrick's method with a greedy fallback for large charts), and both front ends — the JsonLogic converter (`beast/src/converter.rs`) and the algebraic tokenizer/parser (`beast/src/algebraic.rs`) — plus the variable-name table (`beast/src/variable_table.rs`) exist. The CLI selects input syntax with `--in`/`-i` and output syntax with `--out`/`-o` (`algebraic`|`json`; in defaults to algebraic, out defaults to in), and the algebraic output style with `--style`/`-s` (`common`|`code`|`logic`, default `common`); `--version`/`-v` and `--help`/`-h` are provided by `clap`. Argument parsing uses the `clap` crate (derive API) in `beast/src/main.rs`. `cargo build`, `cargo test`, and `cargo clippy` are clean.
 
 One intentional design choice: `simplify_json` / `simplify_algebraic` return `Result<Expression, String>` (not `Expression`) so the CLI can surface parse errors (unknown operator, bad arity, syntax errors, >32 variables) on stderr.
 
 ## Build & run
 
-Requires a Rust toolchain (Cargo). This is a Cargo **workspace** of two crates — `beast` (data model, converter, CLI) and `quine-mccluskey` (the simplifier library). There are **no external dependencies** (JSON is `beast`'s in-crate `json` module), so builds work fully offline.
+Requires a Rust toolchain (Cargo). This is a Cargo **workspace** of two crates — `beast` (data model, converter, CLI) and `quine-mccluskey` (the simplifier library). The only third-party dependency is **`clap`** (CLI parsing, used by `beast/src/main.rs`); JSON is `beast`'s in-crate `json` module. `clap` is fetched from crates.io on the first build, after which builds work offline.
 
 ```sh
 cargo build                              # build the whole workspace
