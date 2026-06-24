@@ -19,3 +19,4 @@ path = "src/main.rs"
 
 [dependencies]
 quine-mccluskey = { path = "../quine-mccluskey" }
+clap = { version = "4", features = ["derive"] }

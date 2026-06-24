@@ -13,7 +13,7 @@ Internally the simplification is performed in disjunctive normal form (DNF) usin
 
 ## Building
 
-Beast is a Cargo workspace with no external dependencies, so it builds offline with a standard Rust toolchain:
+Beast is a Cargo workspace built with a standard Rust toolchain. Its only third-party dependency is [`clap`](https://crates.io/crates/clap) (command-line parsing), fetched from crates.io on the first build; thereafter it builds offline:
 
 ```sh
 cargo build                            # build the workspace (library + `beast` binary)
@@ -26,14 +26,19 @@ The compiled binary is `target/debug/beast` (or `target/release/beast` after `ca
 ## Command-line syntax
 
 ```text
-beast [--in algebraic|json] [--out algebraic|json] '<expression>'
-beast [--in algebraic|json] [--out algebraic|json] < expression.txt
+beast [--in algebraic|json] [--out algebraic|json] [--style common|code|logic] '<expression>'
+beast [--in algebraic|json] [--out algebraic|json] [--style common|code|logic] < expression.txt
 ```
 
+| Option | Values | Default | Description |
+| --- | --- | --- | --- |
+| `--in` / `-i` | `algebraic`, `json` | `algebraic` | Input syntax. |
+| `--out` / `-o` | `algebraic`, `json` | input syntax | Output syntax. So `algebraic` in yields `algebraic` out and `json` in yields `json` out unless you ask otherwise. |
+| `--style` / `-s` | `common`, `code`, `logic` | `common` | Algebraic output style. Affects only the operator glyphs and whitespace, and is ignored for JSON output. See [Output styles](#output-styles). |
+| `--version` / `-v` | — | — | Print the version and exit. |
+| `--help` / `-h` | — | — | Print usage and exit. |
+
 - If an expression is supplied as the first non-flag argument, it is parsed as the input. Otherwise, the expression is read from standard input.
-- `--in` / `-i` selects the input syntax: `algebraic` (the default) or `json`.
-- `--out` / `-o` selects the output syntax. It defaults to the input syntax, so `algebraic` in yields `algebraic` out and `json` in yields `json` out unless you ask otherwise.
-- `--style` / `-s` selects the algebraic output style: `common` (the default), `code`, or `logic`. It affects only the operator glyphs and whitespace, and is ignored for JSON output. See [Output styles](#output-styles).
 - Use `--` to end option parsing when an algebraic expression begins with `-` (e.g. `beast -- '-a'`), or pass it on stdin.
 
 The simplified expression is written to standard output. Parse errors and other failures are reported on standard error, and the program exits with a non-zero status.
@@ -155,11 +160,6 @@ Corresponding simplified output, in disjunctive normal form:
 
 ## Architecture
 
-Beast is organized as a Cargo workspace of two crates:
+Beast is a Cargo workspace of two crates: `beast` (parsing, serialization, and the end-to-end pipeline) and `quine-mccluskey` (the Quine–McCluskey simplifier library). The pipeline is `input → DNF → minimized DNF → output`, with algebraic or JsonLogic on each side.
 
-1. **The `beast` crate** — the main crate. It owns the end-to-end pipeline: it parses the JsonLogic input and converts it to an equivalent expression in disjunctive normal form (DNF), drives the simplification, and serializes the simplified result back to JsonLogic. It depends on `quine-mccluskey` for the minimization step.
-2. **The `quine-mccluskey` crate** — the simplifier library. It minimizes a boolean expression with the Quine–McCluskey algorithm, taking DNF as its input and producing minimized DNF as its output.
-
-So `beast` does the full job — convert, simplify, and emit the simplified expression — delegating only the core Quine–McCluskey minimization to the `quine-mccluskey` crate. The command-line program parses the input (algebraic or JsonLogic), converts it to DNF, hands that to the simplifier, and serializes the minimized DNF result back to the chosen output syntax.
-
-Parsing and serialization come in two interchangeable front ends over the same DNF core: the algebraic tokenizer/parser (`beast/src/algebraic.rs`, paired with `Expression::to_algebraic`) and the JsonLogic converter (`beast/src/converter.rs`, paired with `Expression::to_json`). Either input form can be emitted in either output form.
+For the internal design — data model, the DNF core, the two Quine–McCluskey representations, and implementation notes — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

@@ -1,4 +1,8 @@
-//! Beast: a boolean expression simplifier.
+#![doc = include_str!("../../README.md")]
+//!
+//! ---
+//!
+//! # Implementation notes
 //!
 //! This uses the Quine-McCluskey algorithm to simplify a boolean expression in disjunctive normal form (DNF). The architecture is
 //! two libraries:
@@ -403,8 +407,8 @@ impl Expression {
 
     /// Returns a string representing the expression in the default ([`Common`](AlgebraicStyle::Common)) algebraic style.
     ///
-    /// The dual of [`algebraic::parse_algebraic`](crate::algebraic::parse_algebraic). See
-    /// [`to_algebraic_styled`](Expression::to_algebraic_styled) to pick the operator/whitespace style.
+    /// The dual of [`algebraic::parse_algebraic`]. See [`to_algebraic_styled`](Expression::to_algebraic_styled) to pick the
+    /// operator/whitespace style.
     pub fn to_algebraic(&self) -> String {
         self.to_algebraic_styled(AlgebraicStyle::default())
     }

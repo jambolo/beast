@@ -1,7 +1,7 @@
 //! Algebraic parser: an algebraic boolean expression -> DNF [`Expression`].
 //!
-//! This is the input-side counterpart to [`Expression::to_algebraic`]. A [`tokenize`] pass turns the source text into [`Token`]s,
-//! then a recursive descent ([`parse_algebraic`]) builds an [`Expression`] directly in DNF by reusing the boolean algebra on
+//! This is the input-side counterpart to [`Expression::to_algebraic`]. A `tokenize` pass turns the source text into `Token`s, then
+//! a recursive descent ([`parse_algebraic`]) builds an [`Expression`] directly in DNF by reusing the boolean algebra on
 //! [`Expression`] (`|` ORs product terms, `&` distributes, [`Expression::inverse`] applies De Morgan), exactly like the JsonLogic
 //! [`converter`](crate::converter).
 //!
@@ -129,8 +129,8 @@ fn tokenize(input: &str) -> Result<Vec<Token>, String> {
 ///
 /// # Errors
 ///
-/// Returns `Err` on a lexing error (see [`tokenize`]), an empty expression, a syntax error (unbalanced parentheses, a dangling
-/// operator, trailing tokens), or more than [`quine_mccluskey::MAX_VARIABLES`] distinct variables.
+/// Returns `Err` on a lexing error, an empty expression, a syntax error (unbalanced parentheses, a dangling operator, trailing
+/// tokens), or more than [`quine_mccluskey::MAX_VARIABLES`] distinct variables.
 ///
 /// # Examples
 ///
