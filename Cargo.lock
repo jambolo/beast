@@ -54,7 +54,7 @@ dependencies = [
 
 [[package]]
 name = "beast"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "clap",
  "quine-mccluskey",
@@ -135,7 +135,7 @@ dependencies = [
 
 [[package]]
 name = "quine-mccluskey"
-version = "1.0.0"
+version = "1.1.0"
 
 [[package]]
 name = "quote"
